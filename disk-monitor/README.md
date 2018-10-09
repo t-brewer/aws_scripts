@@ -26,6 +26,6 @@ Note : this script was designed to be run with `disk-monitor` so that it can be 
 
 ## `disk-monitor`
 Runs `disk-report` on a loop, and records latest report into a text file `disk_check.txt`.  Waiting time between checks is 12 hours.  Meant to be run using `nohup` so that it can be detached from terminal and be a constant background process. 
-<br>
+<br> <br>
 Usage (by detaching from terminal) : `nohup ./disk-monitor &` <br>
 <br>
