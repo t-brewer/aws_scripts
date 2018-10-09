@@ -29,3 +29,12 @@ Runs `disk-report` on a loop, and records latest report into a text file `disk_c
 <br> <br>
 Usage (by detaching from terminal) : `nohup ./disk-monitor &` <br>
 <br>
+Future :
+- Add command line option for monitioring period.
+
+## `monitor-group`
+Similar to `disk-monitor` but also loops over different EC2 instances.  Said instances are stored in a file `instances` with 2 columns : user@instancePUblicDNS | Topic ARN for sending messages.  Said instances need to have given permission for access by adding a public ssh key to ~/.ssh/authorized_keys in monitoring instance.  They also need to have been configured as descripted in in `disk-report`. <br>
+<br>
+
+Future : <br>
+- Add command line options for paths of input/output files, and period (sleep time).

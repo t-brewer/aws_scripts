@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Used to monitor disk usage of multiple instances from a single one.  May be region specific.
+key="~/.ssh/id_rsa"
+input="instances"
+output="last_report"
+
+while true;
+do
+    
+    if [ -f $output ]; then
+        rm $output
+        touch $output
+    fi
+    
+    while IFS=" " read -r INSTANCE ARN remainder
+    do
+        ssh -i $key $INSTANCE 'bash -s' < ./disk-report $ARN >> $output
+        echo " " >> $output
+    done < $input
+    sleep 43200 # wait 12 hours between checks 
+done
