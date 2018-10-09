@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Script used to monitor disk usage, using the df command.
+# Once available space is below a certain threshold (default = 2 GB for root 90 percent for other partitions)
+# sends out an email using the aws sns functionality.
+
+# To run detached from terminal and have it run constantly (even after closing terminal) use : nohup ./diskalert &
+# if for some reason you need to kill it later, you can run ps -U root -u root -N to see all non-root processes (including this one)
+# and fetch the PID. 
+
+# USAGE REQUIREMENTS:
+# - Must have aws cli installed
+# - Must have configured AWS with Access codes, and access code secrets (create an IAM for the account
+# and generate it), default region, and output type (text, json, etc...)
+# - Must create an ARN topic in AWS interface, and replace the ARN variable under DEFAULT ARGUMENTS, done by Admin or Power user.
+# - With ARN configured must configure endpoints on ARN (email addresses to be be sent to). 
+# - 
+# Note that to keep precision we use megabytes (10**6 bytes) units when getting the available space,
+# then divide by 1000 to convert to GB.  That's because df command rounds pretty ruthlessly.
+
+
+# Make sure a topic arn is provided to send email :
+if [ -z "$1" ]; then
+    echo 'need to provide topic arn for sending alerts via AWS command line. e.g. : '
+    echo "arn:aws:sns:us-east-x:xxxxxxxxxx:Topic-Name"
+    exit 1
+fi
+
+# Rename positional argument (topic arn for aws)
+ARN=$1
+
+# Identify the different filesystem/mounts and their UUIDs
+INFO=$(sudo blkid -s UUID)
+NFS=$(sudo blkid -s UUID | wc -l) # Number of "FileSystems"/Mounts to be checked
+
+
+# AWS META DATA
+# Doing head -1 because parameters appear several times in outputs. 
+#INSTANCEID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+INSTANCEID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+PUBHOST="$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)"
+INSTANCENAME=`aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCEID" | grep -Po '"Value": *\K"[^"]*"' | head -1`
+
+# Display Header
+echo '=============================='
+echo "Disk Usage Check"
+echo $(TZ=America/New_York date)
+echo "INSTANCE NAME: $INSTANCENAME"
+echo "INSTANCE HOST: $PUBHOST"
+echo "INSTANCE ID  : $INSTANCEID"
+echo "TOPIC ARN: $ARN"
+echo '=============================='
+
+
+
+
+# Store things from info string into different arrays
+# blkid returns two fields, so skipping one each time 
+declare -a MOUNTS # filesystems/mounts
+counter=0
+counter_fs=0
+for i in $INFO; do
+    if [ `expr $counter % 2` -eq 0 ]; then
+        MOUNTS[$counter_fs]=`sed 's/://' <<< "$i"`
+        counter_fs=$((counter_fs + 1))
+    fi
+    counter=$((counter + 1))
+done
+
+# Loop through mounts and get stuff
+counter=0
+for i in ${MOUNTS[@]}; do
+    
+    MOUNT_FS=`sed 's/://' <<< "$i"`
+    DFINFO=`(df --block-size=1000000 --output=size,used,avail,pcent,target $MOUNT_FS | tail -1)`
+    SIZE=`echo $DFINFO | cut -d " " -f 1`
+    USED=`echo $DFINFO | cut -d " " -f 2`
+    AVAIL=`echo $DFINFO | cut -d " " -f 3`
+    PCENT=`echo $DFINFO | cut -d " " -f 4`
+    PCENT=`sed 's/%//' <<< $PCENT`
+    TARGET=`echo $DFINFO | cut -d " " -f 5`
+    
+    # Get in Gigabytes
+    SIZE_GB=`bc -l <<< "scale=3; $SIZE/1000"`
+    AVAIL_GB=`bc -l <<< "scale=3; $AVAIL/1000"`
+    USED_GB=`bc -l <<< "scale=3; $USED/1000"`
+
+    # Print Report
+    echo "MOUNT      " $MOUNT_FS
+    echo "NAME       " $TARGET
+    echo "SIZE       " $SIZE_GB "GB"
+    echo "USED       " $USED_GB "GB"
+    echo "AVAILABLE  " $AVAIL_GB "GB"
+    echo "% USED     " $PCENT "%"
+    echo '........................'
+
+
+    # See if mount is root, and define metric (we want a hard 2 GB for root, and a percentage for anything else)
+    if [ $TARGET = '/' ]; then
+        ISROOT=true
+        THRESHOLD=2000 # 2GB for root
+        METRIC=$AVAIL
+    else
+        ISROOT=false
+        THRESHOLD=10 # want 90 % used if not root
+        METRIC=$((100 - PCENT)) # % of available space
+    fi
+    
+    # Check if Metric has passed pre-determined threshold, echo, and email warning message if so.
+    if [ $METRIC -lt $THRESHOLD ]; then
+        WARNINGMESSAGE="WARNING ON EC2 INSTANCE : $INSTANCENAME, $PUBHOST | MOUNT : $i has $AVAIL_GB GB of available space | SIZE : $SIZE_GB GB | $PCENT % USAGE"
+        echo $WARNINGMESSAGE
+        #aws sns publish --topic-arn "$ARN" --message "$WARNINGMESSAGE" --subject "$EC2 DISK USAGE WARNING"
+    fi
+    
+done
+    
+

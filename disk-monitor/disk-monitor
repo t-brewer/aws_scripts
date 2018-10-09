@@ -1,0 +1,17 @@
+#!/bin/bash
+# Just a loop to run alerts.  Did this separately in case other alerts need to be added.
+
+# Make sure a topic arn is provided to send email :
+if [ -z "$1" ]; then
+    echo 'need to provide topic arn for sending alerts via AWS command line. e.g. : '
+    echo "arn:aws:sns:us-east-x:xxxxxxxxxx:Topic-Name"
+    exit 1
+fi
+
+# Rename positional argument ARN (topic for aws)
+ARN=$1
+
+while true; do
+    ./disk-report "$ARN" > diskusage_check.txt # check disk usage on each partition/mount of the instance
+    sleep 43200 # wait 12 hours
+done
