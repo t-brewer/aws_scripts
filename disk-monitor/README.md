@@ -27,7 +27,7 @@ Note : this script was designed to be run with `disk-monitor` so that it can be 
 ## `disk-monitor`
 Runs `disk-report` on a loop, and records latest report into a text file `disk_check.txt`.  Waiting time between checks is 12 hours.  Meant to be run using `nohup` so that it can be detached from terminal and be a constant background process. 
 <br> <br>
-Usage (by detaching from terminal) : `nohup ./disk-monitor &` <br>
+Usage (by detaching from terminal) : `nohup ./disk-monitor arn:aws:sns:region-name:x-xxxxxxx:Topic-Name&` <br>
 <br>
 Future :
 - Add command line option for monitioring period.
@@ -36,5 +36,10 @@ Future :
 Similar to `disk-monitor` but also loops over different EC2 instances.  Said instances are stored in a file `instances` with 2 columns : user@instancePUblicDNS | Topic ARN for sending messages.  Said instances need to have given permission for access by adding a public ssh key to ~/.ssh/authorized_keys in monitoring instance.  They also need to have been configured as descripted in in `disk-report`. <br>
 <br>
 
+Usage : <br>
+`nohup ./monitor-group &` 
+<br>
+(does not take input since it reads from the file) <br>
+<br>
 Future : <br>
 - Add command line options for paths of input/output files, and period (sleep time).
